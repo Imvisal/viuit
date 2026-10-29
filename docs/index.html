@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#16181d">
+<meta name="theme-color" content="#15161a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>viuit</title>
@@ -13,126 +13,162 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top">
-  <h1><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M4.5 6.5 12 19.5 19.5 6.5" fill="none" stroke="#e8832a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.4 4.8v4.6l3.8-2.3z" fill="#ecedf1"/></svg>viuit</h1>
-  <div class="top-right">
-    <select id="res" aria-label="Export resolution">
-      <option value="480p">480p</option>
-      <option value="720p">720p</option>
-      <option value="1080p" selected>1080p</option>
-    </select>
-    <button id="exportBtn" class="primary">Export</button>
-  </div>
-</header>
+<div class="app">
 
-<main>
-  <section class="stage">
-    <div class="screen">
-      <canvas id="cv" width="1920" height="1080"></canvas>
-      <div id="empty">Add a video to start</div>
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M4.5 6.5 12 19.5 19.5 6.5" fill="none" stroke="#e8832a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.4 4.8v4.6l3.8-2.3z" fill="#ecedf1"/></svg>
+      <span>viuit</span>
     </div>
-    <div class="tools">
-      <label class="tool">Size
-        <select id="aspect" aria-label="Video size">
+    <div class="top-mid">
+      <button id="undoBtn" class="icon" aria-label="Undo" disabled><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+      <button id="redoBtn" class="icon" aria-label="Redo" disabled><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+    </div>
+    <button id="exportBtn" class="icon" aria-label="Export video"><svg viewBox="0 0 24 24"><path d="M12 15V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M5 14v4a2 2 0 0 0 2 2h14"/><path d="M19 14v4a2 2 0 0 1-2 2"/></svg></button>
+  </header>
+
+  <section class="screen">
+    <canvas id="cv" width="1920" height="1080"></canvas>
+    <div id="empty">Add a video to start</div>
+  </section>
+
+  <div class="transport">
+    <span id="tlabel">0:00 / 0:00</span>
+    <button id="playBtn" class="play" aria-label="Play"></button>
+    <button id="fsBtn" class="icon" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/></svg></button>
+  </div>
+
+  <div class="tl-tools">
+    <button id="setBtn" class="icon" aria-label="Size and quality"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
+    <span class="grow"></span>
+    <button id="zOut" class="icon" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg></button>
+    <button id="zIn" class="icon" aria-label="Zoom in"><svg viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg></button>
+    <button id="zFit" class="icon" aria-label="Fit timeline"><svg viewBox="0 0 24 24"><path d="M3 12h6m6 0h6"/><path d="m6 9 3 3-3 3M18 9l-3 3 3 3"/></svg></button>
+  </div>
+
+  <div class="tl-wrap"><canvas id="tl"></canvas></div>
+
+  <div id="drawer" hidden>
+    <div class="dr-head">
+      <strong id="drTitle"></strong>
+      <button id="drClose" class="icon" aria-label="Close"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="dr-body">
+
+      <div class="pane" id="pane-videos">
+        <div class="clipbar">
+          <button id="trimBtn" class="btn small">Trim</button>
+          <button id="fitBtn" class="btn small" title="Fit shows the whole video, Fill crops it to fill the frame">Fit</button>
+          <button id="leftBtn" class="btn small" aria-label="Move clip earlier">&larr;</button>
+          <button id="rightBtn" class="btn small" aria-label="Move clip later">&rarr;</button>
+          <button id="delClipBtn" class="btn small danger">Delete</button>
+        </div>
+        <p class="hint">The clip under the white line is selected. Drag the timeline to move, drag the white handles to trim.</p>
+        <ul class="list" id="list-videos"></ul>
+        <label class="btn primary" for="fileVideo">Add video</label>
+      </div>
+
+      <div class="pane" id="pane-sound">
+        <p class="hint">Music or voice-over, mixed over the video. New sounds start at the white line.</p>
+        <ul class="list" id="list-sound"></ul>
+        <label class="btn primary" for="fileAudio">Add sound</label>
+      </div>
+
+      <div class="pane" id="pane-text">
+        <p class="hint">Titles and labels. Position is a percentage from the left and top.</p>
+        <ul class="list" id="list-text"></ul>
+        <button id="addText" class="btn primary">Add text</button>
+      </div>
+
+      <div class="pane" id="pane-captions">
+        <div class="row">
+          <label>AI model
+            <select id="model">
+              <option value="Xenova/whisper-tiny">Tiny (fast)</option>
+              <option value="Xenova/whisper-base" selected>Base</option>
+              <option value="Xenova/whisper-small">Small (best, slow)</option>
+            </select>
+          </label>
+          <label>Language
+            <select id="lang">
+              <option value="">Auto</option>
+              <option value="en">English</option>
+              <option value="si">Sinhala</option>
+              <option value="ta">Tamil</option>
+              <option value="hi">Hindi</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="ja">Japanese</option>
+            </select>
+          </label>
+        </div>
+        <button id="genCaps" class="btn primary">Auto captions</button>
+        <div id="capStatus" class="status" hidden>
+          <span id="capMsg"></span>
+          <div class="bar"><div id="capBar"></div></div>
+        </div>
+        <ul class="list" id="list-captions"></ul>
+        <button id="addCap" class="btn">Add caption</button>
+        <details class="style">
+          <summary>Caption style</summary>
+          <div class="row">
+            <label class="check"><input type="checkbox" id="capOn" checked> Show on video</label>
+            <label class="check"><input type="checkbox" id="capBox"> Dark box</label>
+          </div>
+          <div class="row">
+            <label>Size<input type="number" id="capSize" value="54" min="10" max="300"></label>
+            <label>From bottom %<input type="number" id="capBottom" value="8" min="0" max="90"></label>
+            <label>Color<input type="color" id="capColor" value="#ffffff"></label>
+          </div>
+        </details>
+      </div>
+
+      <div class="pane" id="pane-size">
+        <p class="hint">Video size</p>
+        <div class="chips" id="aspChips"></div>
+        <p class="hint">Export quality</p>
+        <div class="chips" id="resChips"></div>
+        <p class="hint">Fill crops the clip to fill the frame. Use the Crop tool below to move and zoom it.</p>
+        <select id="aspect" hidden>
           <option value="auto" selected>Auto</option>
-          <option value="16:9">16:9 wide</option>
-          <option value="9:16">9:16 tall</option>
-          <option value="1:1">1:1 square</option>
-          <option value="4:5">4:5 portrait</option>
+          <option value="16:9">16:9</option>
+          <option value="9:16">9:16</option>
+          <option value="1:1">1:1</option>
+          <option value="4:5">4:5</option>
           <option value="4:3">4:3</option>
         </select>
-      </label>
-      <button id="fitBtn" class="btn small" title="Fit shows the whole video, Fill crops it to fill the frame">Fit</button>
-      <button id="cropBtn" class="btn small">Crop</button>
-    </div>
-    <div class="transport">
-      <button id="playBtn" class="round" aria-label="Play"></button>
-      <span id="tlabel">0:00.0 / 0:00.0</span>
-      <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" aria-label="Position">
-    </div>
-    <canvas id="tl" height="150"></canvas>
-    <div class="clipbar">
-      <button id="splitBtn" class="btn small">Split</button>
-      <button id="trimBtn" class="btn small">Trim</button>
-      <button id="leftBtn" class="btn small" aria-label="Move clip earlier">&larr;</button>
-      <button id="rightBtn" class="btn small" aria-label="Move clip later">&rarr;</button>
-      <button id="delClipBtn" class="btn small danger">Delete</button>
-    </div>
-    <p class="hint tip">Tap the timeline to pick a clip. Drag its white handles to trim. Split cuts at the red line.</p>
-  </section>
-
-  <section class="panel">
-    <nav class="tabs" role="tablist">
-      <button class="tab on" data-tab="videos">Videos</button>
-      <button class="tab" data-tab="sound">Sound</button>
-      <button class="tab" data-tab="text">Text</button>
-      <button class="tab" data-tab="captions">Captions</button>
-    </nav>
-
-    <div class="pane on" id="pane-videos">
-      <p class="hint">Clips play one after another. Tap a clip for trim, crop and volume.</p>
-      <ul class="list" id="list-videos"></ul>
-      <label class="btn primary" for="fileVideo">Add video</label>
-      <input type="file" id="fileVideo" accept="video/*" multiple hidden>
-    </div>
-
-    <div class="pane" id="pane-sound">
-      <p class="hint">Music or voice-over, mixed over the video. New sounds start at the current position.</p>
-      <ul class="list" id="list-sound"></ul>
-      <label class="btn primary" for="fileAudio">Add sound</label>
-      <input type="file" id="fileAudio" accept="audio/*,video/*" hidden>
-    </div>
-
-    <div class="pane" id="pane-text">
-      <p class="hint">Titles and labels. Position is a percentage from the left and top.</p>
-      <ul class="list" id="list-text"></ul>
-      <button id="addText" class="btn primary">Add text</button>
-    </div>
-
-    <div class="pane" id="pane-captions">
-      <div class="row">
-        <label>AI model
-          <select id="model">
-            <option value="Xenova/whisper-tiny">Tiny (fast)</option>
-            <option value="Xenova/whisper-base" selected>Base</option>
-            <option value="Xenova/whisper-small">Small (best, slow)</option>
-          </select>
-        </label>
-        <label>Language
-          <select id="lang">
-            <option value="">Auto</option>
-            <option value="en">English</option>
-            <option value="si">Sinhala</option>
-            <option value="ta">Tamil</option>
-            <option value="hi">Hindi</option>
-            <option value="es">Spanish</option>
-            <option value="fr">French</option>
-            <option value="ja">Japanese</option>
-          </select>
-        </label>
+        <select id="res" hidden>
+          <option value="480p">480p</option>
+          <option value="720p">720p</option>
+          <option value="1080p" selected>1080p</option>
+        </select>
       </div>
-      <button id="genCaps" class="btn primary">Auto captions</button>
-      <div id="capStatus" class="status" hidden>
-        <span id="capMsg"></span>
-        <div class="bar"><div id="capBar"></div></div>
-      </div>
-      <ul class="list" id="list-captions"></ul>
-      <button id="addCap" class="btn">Add caption</button>
-      <details class="style">
-        <summary>Caption style</summary>
-        <div class="row">
-          <label class="check"><input type="checkbox" id="capOn" checked> Show on video</label>
-          <label class="check"><input type="checkbox" id="capBox"> Dark box</label>
-        </div>
-        <div class="row">
-          <label>Size<input type="number" id="capSize" value="54" min="10" max="300"></label>
-          <label>From bottom %<input type="number" id="capBottom" value="8" min="0" max="90"></label>
-          <label>Color<input type="color" id="capColor" value="#ffffff"></label>
-        </div>
-      </details>
+
     </div>
-  </section>
-</main>
+  </div>
+
+  <div id="addMenu" hidden>
+    <label class="mi" for="fileVideo"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.5v5l4.2-2.5z"/></svg>Video</label>
+    <label class="mi" for="fileAudio"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>Sound</label>
+    <button class="mi" id="miText"><svg viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>Text</button>
+    <button class="mi" id="miCaps"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 10.2a2.5 2.5 0 1 0 0 3.6M17 10.2a2.5 2.5 0 1 0 0 3.6"/></svg>Captions</button>
+  </div>
+  <input type="file" id="fileVideo" accept="video/*" multiple hidden>
+  <input type="file" id="fileAudio" accept="audio/*,video/*" hidden>
+
+  <nav class="bottom">
+    <button id="plusBtn" class="plus" aria-label="Add"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <div class="tools-scroll">
+      <button class="ti" data-open="videos"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.5v5l4.2-2.5z"/></svg><span>Video</span></button>
+      <button class="ti" data-open="sound"><svg viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg><span>Sound</span></button>
+      <button class="ti" data-open="text"><svg viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg><span>Text</span></button>
+      <button class="ti" data-open="captions"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 10.2a2.5 2.5 0 1 0 0 3.6M17 10.2a2.5 2.5 0 1 0 0 3.6"/></svg><span>Captions</span></button>
+      <button class="ti" id="splitBtn"><svg viewBox="0 0 24 24"><circle cx="6" cy="6.5" r="2.5"/><circle cx="6" cy="17.5" r="2.5"/><path d="M8 8l12 10M8 16 20 6"/></svg><span>Split</span></button>
+      <button class="ti" id="cropBtn"><svg viewBox="0 0 24 24"><path d="M7 3v14h14M3 7h14v14"/></svg><span>Crop</span></button>
+      <button class="ti" data-open="size"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 10h3M8 10v3M16 14h-3M16 14v-3"/></svg><span>Size</span></button>
+    </div>
+  </nav>
+</div>
 
 <div id="sheetWrap" hidden>
   <div id="sheetBack"></div>

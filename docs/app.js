@@ -32,7 +32,7 @@ function outSize() {
 }
 const curIdx = () => (state.clips.length ? locate(state.t).i : -1);
 const currentClip = () => state.clips[curIdx()];
-function releaseUrl(url) { if (!state.clips.some(c => c.url === url) && !state.audios.some(a => a.url === url)) URL.revokeObjectURL(url); }
+function releaseUrl() { /* keep object URLs alive so Undo can bring clips back */ }
 function locate(t) {
   let acc = 0;
   for (let i = 0; i < state.clips.length; i++) {
@@ -229,80 +229,100 @@ function loop() {
 const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>';
 const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
 function setPlayIcon() { const b = $('#playBtn'); b.innerHTML = state.playing ? ICON_PAUSE : ICON_PLAY; b.setAttribute('aria-label', state.playing ? 'Pause' : 'Play'); }
+const fmtS = t => { t = Math.max(0, t || 0); return Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); };
 function updateTransport() {
-  const tot = total();
-  $('#tlabel').textContent = fmt(state.t) + ' / ' + fmt(tot);
-  const s = $('#scrub'); s.max = Math.max(tot, 0.1); if (document.activeElement !== s || state.playing) s.value = state.t;
+  $('#tlabel').textContent = fmtS(state.t) + ' / ' + fmtS(total());
   const c = currentClip(); $('#fitBtn').textContent = c && c.fit === 'fill' ? 'Fill' : 'Fit'; $('#fitBtn').disabled = !c;
+  $('#undoBtn').disabled = hi <= 0; $('#redoBtn').disabled = hi >= hist.length - 1;
   drawTimeline();
 }
 
-/* ------------------------------------------------------------ timeline */
+/* ------------------------------------------------------------ timeline (fixed white line in the middle, drag to move) */
 const tl = $('#tl'), tctx = tl.getContext('2d');
+let pps = 70, viewT = null, tlGeom = [];
+const ROWS = [{ h: 46, c: '#2f6fe0' }, { h: 28, c: '#2c9a69' }, { h: 28, c: '#bf922c' }, { h: 28, c: '#8f5bc9' }];
+function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
 function drawTimeline() {
   const dpr = window.devicePixelRatio || 1, w = tl.clientWidth, h = tl.clientHeight;
   if (!w) return;
   if (tl.width !== Math.round(w * dpr) || tl.height !== Math.round(h * dpr)) { tl.width = Math.round(w * dpr); tl.height = Math.round(h * dpr); }
   const c = tctx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
-  const x0 = 66, x1 = w - 10, span = Math.max(total(), 10), X = t => x0 + (x1 - x0) * t / span;
-  const steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600], step = steps.find(s => (x1 - x0) * s / span >= 56) || 600;
-  c.font = '10px system-ui, sans-serif'; c.textBaseline = 'middle';
-  for (let t = 0; t <= span; t += step) { c.fillStyle = '#2a2d34'; c.fillRect(X(t), 14, 1, h - 14); c.fillStyle = '#777'; c.textAlign = 'left'; c.fillText(fmt(t), X(t) + 3, 7); }
-  const rows = [['Video', '#3f7cd6'], ['Sound', '#3fae7a'], ['Text', '#d6a53f'], ['Captions', '#a56ad6']];
-  let acc = 0; tlGeom = [];
+  const cx = w / 2, vt = viewT == null ? state.t : viewT, X = t => cx + (t - vt) * pps;
+  c.textBaseline = 'middle'; c.font = '11px system-ui, sans-serif';
+  const steps = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600], step = steps.find(s => s * pps >= 64) || 600;
+  const tMin = vt - cx / pps, tMax = vt + (w - cx) / pps;
+  for (let t = Math.max(0, Math.floor(tMin / step) * step); t <= tMax; t += step) {
+    const x = X(t); c.fillStyle = '#3a3b45'; c.fillRect(x, 8, 1, 6);
+    c.fillStyle = '#8b8d98'; c.textAlign = 'left'; c.fillText(fmtS(t) + (step < 1 && t % 1 ? '.5' : ''), x + 4, 11);
+  }
+  let acc = 0, y = 24; tlGeom = [];
   const blocks = [
-    state.clips.map(k => { const s = acc; acc += k.end - k.start; tlGeom.push({ xa: X(s), xb: X(acc), s, e: acc }); return [s, acc, k.name]; }),
+    state.clips.map(k => { const s0 = acc; acc += k.end - k.start; tlGeom.push({ xa: X(s0), xb: X(acc), s: s0 }); return [s0, acc, k.name]; }),
     state.audios.map(a => [a.offset, a.offset + a.end - a.start, a.name]),
-    state.texts.map(x => [x.start, x.end, x.text]),
+    state.texts.map(x => [x.start, x.end, x.text.replace(/\n/g, ' ')]),
     state.captions.map(x => [x.start, x.end, x.text]),
   ];
-  rows.forEach(([name, col], i) => {
-    const y = 20 + i * 30;
-    c.fillStyle = '#9aa0ad'; c.textAlign = 'left'; c.font = '11px system-ui, sans-serif'; c.fillText(name, 6, y + 11);
-    blocks[i].forEach(([s, e, label]) => {
-      const xa = X(s), xb = Math.max(X(e), xa + 3);
-      c.fillStyle = col; c.fillRect(xa, y, xb - xa, 22);
-      if (xb - xa > 34) { c.save(); c.beginPath(); c.rect(xa, y, xb - xa, 22); c.clip(); c.fillStyle = '#fff'; c.font = '10px system-ui, sans-serif'; c.fillText(label, xa + 4, y + 11); c.restore(); }
+  ROWS.forEach((row, i) => {
+    blocks[i].forEach(([s0, e0, label]) => {
+      const xa = X(s0) + 1, xb = Math.max(X(e0) - 1, xa + 3);
+      if (xb < 0 || xa > w) return;
+      c.fillStyle = row.c; rr(c, xa, y, xb - xa, row.h, 6); c.fill();
+      if (xb - xa > 30) { c.save(); rr(c, xa, y, xb - xa, row.h, 6); c.clip(); c.fillStyle = 'rgba(255,255,255,.92)'; c.textAlign = 'left'; c.font = '11px system-ui, sans-serif'; c.fillText(label, Math.max(xa, 0) + 8, y + row.h / 2); c.restore(); }
     });
+    if (!blocks[i].length && i === 0) { c.fillStyle = '#6f717c'; c.textAlign = 'center'; c.font = '14px system-ui, sans-serif'; c.fillText('Add media to timeline to start creating video!', cx, y + row.h / 2); }
+    y += row.h + 6;
   });
-  const ci = curIdx(), g = tlGeom[ci];
+  const g = tlGeom[curIdx()];
   if (g) {
-    c.strokeStyle = '#fff'; c.lineWidth = 2; c.strokeRect(g.xa + 1, 21, Math.max(g.xb - g.xa - 2, 2), 20);
-    c.fillStyle = '#fff'; c.fillRect(g.xa, 18, 6, 26); c.fillRect(g.xb - 6, 18, 6, 26);
+    const v = ROWS[0]; c.strokeStyle = '#fff'; c.lineWidth = 2; rr(c, g.xa + 1, 24, Math.max(g.xb - g.xa - 2, 4), v.h, 6); c.stroke();
+    c.fillStyle = '#fff'; rr(c, g.xa - 4, 20, 9, v.h + 8, 4); c.fill(); rr(c, g.xb - 5, 20, 9, v.h + 8, 4); c.fill();
+    c.fillStyle = '#15161a'; c.fillRect(g.xa - 0.5, 36, 1.5, 22); c.fillRect(g.xb - 0.5, 36, 1.5, 22);
   }
-  c.fillStyle = '#ff5a4d'; c.fillRect(X(state.t) - 1, 12, 2, h - 12);
+  c.fillStyle = '#fff'; c.fillRect(cx - 1, 0, 2, h); c.beginPath(); c.arc(cx, 4, 4, 0, 7); c.fill();
 }
-let tlGeom = [];
-function tlScale() { const r = tl.getBoundingClientRect(), x0 = 66, x1 = r.width - 10, span = Math.max(total(), 10); return { r, x0, x1, span, pps: (x1 - x0) / span }; }
-function tlSeek(ev) {
-  const { r, x0, pps } = tlScale();
-  if (state.playing) pause();
-  seekTo(clamp((ev.clientX - r.left - x0) / pps, 0, total()));
-}
-let tlDrag = false, trim = null;
+let tlDrag = null, trim = null;
+const tlX = e => e.clientX - tl.getBoundingClientRect().left;
 tl.addEventListener('pointerdown', e => {
-  const { r, pps } = tlScale(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const x = tlX(e), y = e.clientY - tl.getBoundingClientRect().top;
   tl.setPointerCapture(e.pointerId);
   const ci = curIdx(), g = tlGeom[ci];
-  if (g && y >= 16 && y <= 46) {
-    const c = state.clips[ci];
-    if (Math.abs(x - g.xa) <= 16) trim = { mode: 's', c, x, pps, start: c.start, end: c.end, base: g.s };
-    else if (Math.abs(x - g.xb) <= 16) trim = { mode: 'e', c, x, pps, start: c.start, end: c.end, base: g.s };
+  if (g && y >= 14 && y <= 80) {
+    const c = state.clips[ci], base = { c, x, pps, start: c.start, end: c.end, base: g.s, vt0: state.t, edge: 0 };
+    if (Math.abs(x - g.xa) <= 20) trim = { ...base, mode: 's', edge: g.xa };
+    else if (Math.abs(x - g.xb) <= 20) trim = { ...base, mode: 'e', edge: g.xb };
   }
-  if (trim) { if (state.playing) pause(); return; }
-  tlDrag = true; tlSeek(e);
+  if (trim) { if (state.playing) pause(); viewT = trim.vt0; return; }
+  tlDrag = { x0: e.clientX, t0: state.t, moved: false };
 });
 tl.addEventListener('pointermove', e => {
   if (trim) {
-    const { r } = tlScale(), dt = (e.clientX - r.left - trim.x) / trim.pps, c = trim.c;
-    if (trim.mode === 's') { c.start = +clamp(trim.start + dt, 0, trim.end - 0.2).toFixed(2); state.t = trim.base; }
-    else { c.end = +clamp(trim.end + dt, trim.start + 0.2, c.dur).toFixed(2); state.t = Math.max(trim.base, trim.base + c.end - c.start - 0.05); }
+    const x = tlX(e), dt = (x - trim.x) / pps, c = trim.c, cx = tl.clientWidth / 2;
+    if (trim.mode === 's') {
+      c.start = +clamp(trim.start + dt, 0, trim.end - 0.2).toFixed(2); state.t = trim.base;
+      viewT = trim.base - (trim.edge + (x - trim.x) - cx) / pps;
+    } else {
+      c.end = +clamp(trim.end + dt, trim.start + 0.2, c.dur).toFixed(2); state.t = Math.max(trim.base, trim.base + c.end - c.start - 0.05);
+    }
     seekTo(state.t); return;
   }
-  if (tlDrag) tlSeek(e);
+  if (tlDrag) {
+    const dx = e.clientX - tlDrag.x0;
+    if (Math.abs(dx) > 4) tlDrag.moved = true;
+    if (tlDrag.moved) { if (state.playing) pause(); seekTo(clamp(tlDrag.t0 - dx / pps, 0, total())); }
+  }
 });
-const tlUp = () => { tlDrag = false; if (trim) { trim = null; refresh(true); } };
+const tlUp = e => {
+  if (tlDrag && !tlDrag.moved && e.type === 'pointerup') {
+    if (state.playing) pause();
+    seekTo(clamp(state.t + (tlX(e) - tl.clientWidth / 2) / pps, 0, total()));
+  }
+  tlDrag = null;
+  if (trim) { trim = null; viewT = null; refresh(true); }
+};
 tl.addEventListener('pointerup', tlUp); tl.addEventListener('pointercancel', tlUp);
+$('#zIn').onclick = () => { pps = Math.min(400, pps * 1.4); drawTimeline(); };
+$('#zOut').onclick = () => { pps = Math.max(5, pps / 1.4); drawTimeline(); };
+$('#zFit').onclick = () => { pps = clamp((tl.clientWidth / 2 - 16) / Math.max(total(), 1), 5, 400); seekTo(0); };
 
 /* ------------------------------------------------------------ clip tools */
 async function splitClip() {
@@ -331,7 +351,7 @@ function moveClip(d) {
 let cropMode = false; const ptrs = new Map(); let pinch = null;
 function setCrop(on) {
   cropMode = on; $('#cropBtn').classList.toggle('on', on); cv.classList.toggle('crop', on);
-  if (on) toast('Drag the video to move it. Pinch to zoom.');
+  if (on) { closeDrawer(); toast('Drag the video to move it. Pinch to zoom. Tap Crop again when done.'); }
 }
 const dist = () => { const [a, b] = [...ptrs.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
 cv.addEventListener('pointerdown', e => {
@@ -352,7 +372,7 @@ cv.addEventListener('pointermove', e => {
   }
   draw(state.t);
 });
-const cropUp = e => { ptrs.delete(e.pointerId); pinch = null; };
+const cropUp = e => { ptrs.delete(e.pointerId); pinch = null; commit(); updateTransport(); };
 cv.addEventListener('pointerup', cropUp); cv.addEventListener('pointercancel', cropUp);
 
 /* ------------------------------------------------------------ bottom sheet */
@@ -389,6 +409,7 @@ function refresh(seek) {
   $('#empty').hidden = state.clips.length > 0;
   state.t = clamp(state.t, 0, total());
   if (state.playing) { tStart = state.t; playStart = performance.now(); }
+  commit();
   updateTransport();
   if (seek || !state.playing) seekTo(state.t);
 }
@@ -578,21 +599,16 @@ function cancelExport() {
 }
 
 /* ------------------------------------------------------------ wiring */
-document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
-  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === 'pane-' + b.dataset.tab));
-}));
 $('#fileVideo').addEventListener('change', e => { addVideos([...e.target.files]); e.target.value = ''; });
 $('#fileAudio').addEventListener('change', e => { if (e.target.files[0]) addAudio(e.target.files[0]); e.target.value = ''; });
 $('#addText').onclick = addText; $('#addCap').onclick = addCaption; $('#genCaps').onclick = genCaptions;
 $('#playBtn').onclick = () => (state.playing ? pause() : play());
-$('#scrub').addEventListener('input', e => { if (state.playing) pause(); seekTo(num(e.target.value)); });
-$('#aspect').addEventListener('change', e => { state.aspect = e.target.value; draw(state.t); });
-$('#fitBtn').onclick = () => { const c = currentClip(); if (c) { c.fit = c.fit === 'fill' ? 'fit' : 'fill'; c.zoom = 1; c.px = c.py = 50; draw(state.t); updateTransport(); } };
+$('#aspect').addEventListener('change', e => { state.aspect = e.target.value; draw(state.t); commit(); updateTransport(); syncChips(); });
+$('#fitBtn').onclick = () => { const c = currentClip(); if (c) { c.fit = c.fit === 'fill' ? 'fit' : 'fill'; c.zoom = 1; c.px = c.py = 50; draw(state.t); commit(); updateTransport(); } };
 $('#cropBtn').onclick = () => setCrop(!cropMode);
 $('#splitBtn').onclick = splitClip; $('#delClipBtn').onclick = deleteClip; $('#trimBtn').onclick = () => { const i = curIdx(); if (i >= 0) editClip(i); };
 $('#leftBtn').onclick = () => moveClip(-1); $('#rightBtn').onclick = () => moveClip(1);
-$('#res').addEventListener('change', e => { state.res = e.target.value; draw(state.t); });
+$('#res').addEventListener('change', e => { state.res = e.target.value; draw(state.t); syncChips(); });
 $('#exportBtn').onclick = exportVideo; $('#exportCancel').onclick = cancelExport;
 $('#exportClose').onclick = () => { $('#exportWrap').hidden = true; $('#exportVideo').pause(); };
 const capInputs = () => {
@@ -601,10 +617,64 @@ const capInputs = () => {
   c.bottom = clamp(num($('#capBottom').value, 8), 0, 90); c.color = $('#capColor').value;
   if (!state.playing) draw(state.t);
 };
-['#capOn', '#capBox', '#capSize', '#capBottom', '#capColor'].forEach(s => $(s).addEventListener('input', capInputs));
+['#capOn', '#capBox', '#capSize', '#capBottom', '#capColor'].forEach(s => { $(s).addEventListener('input', capInputs); $(s).addEventListener('change', () => { commit(); updateTransport(); }); });
 window.addEventListener('resize', () => { drawTimeline(); draw(state.t); });
+if (window.ResizeObserver) new ResizeObserver(() => drawTimeline()).observe(tl);
 if (window.ResizeObserver) new ResizeObserver(() => draw(state.t)).observe(cv.parentElement);
 document.addEventListener('visibilitychange', () => { if (document.hidden && state.playing && !(recorder && recorder.state === 'recording')) pause(); });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+/* ------------------------------------------------------------ undo / redo */
+const hist = []; let hi = -1, lastSig = '';
+const snap = () => ({ clips: state.clips.map(c => ({ ...c })), audios: state.audios.map(a => ({ ...a })), texts: state.texts.map(x => ({ ...x })), captions: state.captions.map(x => ({ ...x })), cap: { ...state.cap }, aspect: state.aspect });
+const sig = () => JSON.stringify([state.clips.map(c => [c.id, c.start, c.end, c.fit, c.zoom, c.px, c.py, c.volume]), state.audios.map(a => [a.id, a.offset, a.start, a.end, a.volume]), state.texts, state.captions, state.cap, state.aspect]);
+function commit() {
+  const g = sig(); if (g === lastSig) return;
+  lastSig = g; hist.length = hi + 1; hist.push(snap()); hi = hist.length - 1;
+  if (hist.length > 60) { hist.shift(); hi--; }
+}
+function restore(sn) {
+  pause();
+  state.clips = sn.clips.map(c => ({ ...c })); state.audios = sn.audios.map(a => ({ ...a })); state.texts = sn.texts.map(x => ({ ...x }));
+  state.captions = sn.captions.map(x => ({ ...x })); state.cap = { ...sn.cap }; state.aspect = sn.aspect;
+  $('#aspect').value = state.aspect; $('#capOn').checked = state.cap.enabled; $('#capBox').checked = state.cap.box;
+  $('#capSize').value = state.cap.size; $('#capBottom').value = state.cap.bottom; $('#capColor').value = state.cap.color;
+  lastSig = sig(); syncChips(); refresh(true);
+}
+$('#undoBtn').onclick = () => { if (hi > 0) { hi--; restore(hist[hi]); } };
+$('#redoBtn').onclick = () => { if (hi < hist.length - 1) { hi++; restore(hist[hi]); } };
+
+/* ------------------------------------------------------------ drawer, add menu, chips */
+const TITLES = { videos: 'Video', sound: 'Sound', text: 'Text', captions: 'Captions', size: 'Size and quality' };
+let openName = null;
+function setActiveTool(n) { document.querySelectorAll('.ti[data-open]').forEach(b => b.classList.toggle('on', b.dataset.open === n)); }
+function openDrawer(n) {
+  $('#addMenu').hidden = true; if (cropMode) setCrop(false);
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === 'pane-' + n));
+  $('#drTitle').textContent = TITLES[n]; $('#drawer').hidden = false; openName = n; setActiveTool(n);
+}
+function closeDrawer() { $('#drawer').hidden = true; openName = null; setActiveTool(null); }
+document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => (openName === b.dataset.open ? closeDrawer() : openDrawer(b.dataset.open))));
+$('#setBtn').onclick = () => (openName === 'size' ? closeDrawer() : openDrawer('size'));
+$('#drClose').onclick = closeDrawer;
+$('#plusBtn').onclick = e => { e.stopPropagation(); $('#addMenu').hidden = !$('#addMenu').hidden; };
+document.addEventListener('click', e => { if (!e.target.closest('#addMenu') && !e.target.closest('#plusBtn')) $('#addMenu').hidden = true; });
+['#fileVideo', '#fileAudio'].forEach(s => $(s).addEventListener('change', () => { $('#addMenu').hidden = true; openDrawer(s === '#fileVideo' ? 'videos' : 'sound'); }));
+$('#miText').onclick = () => { $('#addMenu').hidden = true; addText(); };
+$('#miCaps').onclick = () => openDrawer('captions');
+$('#fsBtn').onclick = () => {
+  const el = $('.screen');
+  if (document.fullscreenElement) document.exitFullscreen();
+  else { const f = el.requestFullscreen || el.webkitRequestFullscreen; if (f) Promise.resolve(f.call(el)).catch(() => toast('Full screen is not available here.')); else toast('Full screen is not available here.'); }
+};
+function chipGroup(sel, box) {
+  box.innerHTML = '';
+  [...sel.options].forEach(o => { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.dataset.v = o.value; b.textContent = o.textContent; b.onclick = () => { sel.value = o.value; sel.dispatchEvent(new Event('change')); }; box.appendChild(b); });
+}
+function syncChips() {
+  document.querySelectorAll('#aspChips .chip').forEach(b => b.classList.toggle('on', b.dataset.v === $('#aspect').value));
+  document.querySelectorAll('#resChips .chip').forEach(b => b.classList.toggle('on', b.dataset.v === $('#res').value));
+}
+chipGroup($('#aspect'), $('#aspChips')); chipGroup($('#res'), $('#resChips')); syncChips();
+
 setPlayIcon(); refresh();
 window.__sc = { state, seekTo, play, pause, exportVideo, addVideos };
