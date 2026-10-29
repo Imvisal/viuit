@@ -21,3 +21,17 @@ Simple desktop video editor: join videos, add music, add text, auto captions (AI
 - File menu saves/opens projects (.scut)
 
 Tips: model `base` is fast, `small` is more accurate (better for Sinhala/Tamil). First run downloads the model.
+
+---
+
+# Phone app (no PC needed)
+
+The `docs/` folder is an installable web app (PWA). Everything runs on the phone, nothing is uploaded.
+
+**Open:** https://imvisal.github.io/viuit/
+
+- Android (Chrome): menu ⋮ → *Install app* / *Add to Home screen*
+- iPhone (Safari): Share → *Add to Home Screen*
+- Add videos, music, text; auto captions (Whisper AI runs in the browser, needs internet the first time to download the model); export 480p / 720p / 1080p.
+- Export is recorded in real time, so keep the screen on until it finishes. Output is MP4 when the browser supports it, otherwise WebM.
+- Tip: use the *Base* model for speed and *Small* for Sinhala/Tamil accuracy.

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16181d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>SimpleCut</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1>SimpleCut</h1>
+  <div class="top-right">
+    <select id="res" aria-label="Export resolution">
+      <option value="480p">480p</option>
+      <option value="720p">720p</option>
+      <option value="1080p" selected>1080p</option>
+    </select>
+    <button id="exportBtn" class="primary">Export</button>
+  </div>
+</header>
+
+<main>
+  <section class="stage">
+    <div class="screen">
+      <canvas id="cv" width="1920" height="1080"></canvas>
+      <div id="empty">Add a video to start</div>
+    </div>
+    <div class="transport">
+      <button id="playBtn" class="round" aria-label="Play"></button>
+      <span id="tlabel">0:00.0 / 0:00.0</span>
+      <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" aria-label="Position">
+    </div>
+    <canvas id="tl" height="136"></canvas>
+  </section>
+
+  <section class="panel">
+    <nav class="tabs" role="tablist">
+      <button class="tab on" data-tab="videos">Videos</button>
+      <button class="tab" data-tab="sound">Sound</button>
+      <button class="tab" data-tab="text">Text</button>
+      <button class="tab" data-tab="captions">Captions</button>
+    </nav>
+
+    <div class="pane on" id="pane-videos">
+      <p class="hint">Clips play one after another. Tap a clip to trim or move it.</p>
+      <ul class="list" id="list-videos"></ul>
+      <label class="btn primary" for="fileVideo">Add video</label>
+      <input type="file" id="fileVideo" accept="video/*" multiple hidden>
+    </div>
+
+    <div class="pane" id="pane-sound">
+      <p class="hint">Music or voice-over, mixed over the video. New sounds start at the current position.</p>
+      <ul class="list" id="list-sound"></ul>
+      <label class="btn primary" for="fileAudio">Add sound</label>
+      <input type="file" id="fileAudio" accept="audio/*,video/*" hidden>
+    </div>
+
+    <div class="pane" id="pane-text">
+      <p class="hint">Titles and labels. Position is a percentage from the left and top.</p>
+      <ul class="list" id="list-text"></ul>
+      <button id="addText" class="btn primary">Add text</button>
+    </div>
+
+    <div class="pane" id="pane-captions">
+      <div class="row">
+        <label>AI model
+          <select id="model">
+            <option value="Xenova/whisper-tiny">Tiny (fast)</option>
+            <option value="Xenova/whisper-base" selected>Base</option>
+            <option value="Xenova/whisper-small">Small (best, slow)</option>
+          </select>
+        </label>
+        <label>Language
+          <select id="lang">
+            <option value="">Auto</option>
+            <option value="en">English</option>
+            <option value="si">Sinhala</option>
+            <option value="ta">Tamil</option>
+            <option value="hi">Hindi</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="ja">Japanese</option>
+          </select>
+        </label>
+      </div>
+      <button id="genCaps" class="btn primary">Auto captions</button>
+      <div id="capStatus" class="status" hidden>
+        <span id="capMsg"></span>
+        <div class="bar"><div id="capBar"></div></div>
+      </div>
+      <ul class="list" id="list-captions"></ul>
+      <button id="addCap" class="btn">Add caption</button>
+      <details class="style">
+        <summary>Caption style</summary>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="capOn" checked> Show on video</label>
+          <label class="check"><input type="checkbox" id="capBox"> Dark box</label>
+        </div>
+        <div class="row">
+          <label>Size<input type="number" id="capSize" value="54" min="10" max="300"></label>
+          <label>From bottom %<input type="number" id="capBottom" value="8" min="0" max="90"></label>
+          <label>Color<input type="color" id="capColor" value="#ffffff"></label>
+        </div>
+      </details>
+    </div>
+  </section>
+</main>
+
+<div id="sheetWrap" hidden>
+  <div id="sheetBack"></div>
+  <form id="sheet" autocomplete="off">
+    <h2 id="sheetTitle"></h2>
+    <div id="sheetBody"></div>
+    <div id="sheetExtra" class="row"></div>
+    <div class="sheet-actions">
+      <button type="button" id="sheetDel" class="btn danger">Delete</button>
+      <span class="grow"></span>
+      <button type="button" id="sheetCancel" class="btn">Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</div>
+
+<div id="exportWrap" hidden>
+  <div id="exportBox">
+    <h2 id="exportTitle">Exporting</h2>
+    <p id="exportMsg" class="hint">Keep this screen open. The video is recorded in real time.</p>
+    <div class="bar big"><div id="exportBar"></div></div>
+    <video id="exportVideo" controls playsinline hidden></video>
+    <div class="row" id="exportActions" hidden>
+      <a id="saveLink" class="btn primary" download="simplecut.mp4">Save video</a>
+      <button id="shareBtn" class="btn">Share</button>
+      <button id="exportClose" class="btn">Close</button>
+    </div>
+    <button id="exportCancel" class="btn danger">Cancel</button>
+  </div>
+</div>
+
+<div id="toast" role="status" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
