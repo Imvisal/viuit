@@ -1,4 +1,4 @@
-"""SimpleCut - a small desktop video editor. Run:  python app.py"""
+"""viuit - a small desktop video editor. Run:  python app.py"""
 import os
 import queue
 import shutil
@@ -68,12 +68,12 @@ def ask_fields(parent, title, fields):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("SimpleCut")
+        self.title("viuit")
         self.geometry("1180x780")
         self.minsize(980, 680)
         self.p = core.new_project()
         self.proj_path = None
-        self.work = tempfile.mkdtemp(prefix="simplecut_")
+        self.work = tempfile.mkdtemp(prefix="viuit_")
         self.playhead = 0.0
         self.q = queue.Queue()
         self.export_proc = []

@@ -1,6 +1,6 @@
 {
-  "name": "SimpleCut",
-  "short_name": "SimpleCut",
+  "name": "viuit",
+  "short_name": "viuit",
   "description": "Simple video editor: join clips, add music and text, AI captions, export up to 1080p.",
   "start_url": "./",
   "scope": "./",

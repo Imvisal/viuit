@@ -1,4 +1,4 @@
-package com.imvisal.simplecut;
+package com.imvisal.viuit;
 
 import android.os.Bundle;
 import android.view.WindowManager;

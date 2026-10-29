@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build viuit APK
 
 on:
   push:
@@ -50,24 +50,29 @@ jobs:
               for n in ("ic_launcher.png", "ic_launcher_round.png", "ic_launcher_foreground.png"):
                   src.resize((s, s), Image.LANCZOS).save(f"{p}/{n}")
           PY
-          cp MainActivity.java android/app/src/main/java/com/imvisal/simplecut/MainActivity.java
+          cp MainActivity.java android/app/src/main/java/com/imvisal/viuit/MainActivity.java
+
+      - name: Use fixed signing key (so updates install over older versions)
+        run: |
+          mkdir -p ~/.android
+          cp mobile/viuit-debug.keystore ~/.android/debug.keystore
 
       - name: Build APK
         working-directory: mobile/android
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Collect APK
-        run: cp mobile/android/app/build/outputs/apk/debug/app-debug.apk SimpleCut.apk
+        run: cp mobile/android/app/build/outputs/apk/debug/app-debug.apk viuit.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SimpleCut-apk
-          path: SimpleCut.apk
+          name: viuit-apk
+          path: viuit.apk
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
-          name: SimpleCut APK (latest)
-          body: Download SimpleCut.apk on your Android phone and install it (allow "install unknown apps" for your browser).
-          files: SimpleCut.apk
+          name: viuit APK (latest)
+          body: Download viuit.apk on your Android phone and install it (allow "install unknown apps" for your browser).
+          files: viuit.apk

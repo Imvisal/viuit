@@ -1,4 +1,4 @@
-# SimpleCut
+# viuit
 
 Simple desktop video editor: join videos, add music, add text, auto captions (AI), export up to 1080p.
 

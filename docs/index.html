@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#16181d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>SimpleCut</title>
+<title>viuit</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -14,7 +14,7 @@
 </head>
 <body>
 <header class="top">
-  <h1>SimpleCut</h1>
+  <h1><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M4.5 6.5 12 19.5 19.5 6.5" fill="none" stroke="#e8832a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.4 4.8v4.6l3.8-2.3z" fill="#ecedf1"/></svg>viuit</h1>
   <div class="top-right">
     <select id="res" aria-label="Export resolution">
       <option value="480p">480p</option>
@@ -31,12 +31,34 @@
       <canvas id="cv" width="1920" height="1080"></canvas>
       <div id="empty">Add a video to start</div>
     </div>
+    <div class="tools">
+      <label class="tool">Size
+        <select id="aspect" aria-label="Video size">
+          <option value="auto" selected>Auto</option>
+          <option value="16:9">16:9 wide</option>
+          <option value="9:16">9:16 tall</option>
+          <option value="1:1">1:1 square</option>
+          <option value="4:5">4:5 portrait</option>
+          <option value="4:3">4:3</option>
+        </select>
+      </label>
+      <button id="fitBtn" class="btn small" title="Fit shows the whole video, Fill crops it to fill the frame">Fit</button>
+      <button id="cropBtn" class="btn small">Crop</button>
+    </div>
     <div class="transport">
       <button id="playBtn" class="round" aria-label="Play"></button>
       <span id="tlabel">0:00.0 / 0:00.0</span>
       <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" aria-label="Position">
     </div>
-    <canvas id="tl" height="136"></canvas>
+    <canvas id="tl" height="150"></canvas>
+    <div class="clipbar">
+      <button id="splitBtn" class="btn small">Split</button>
+      <button id="trimBtn" class="btn small">Trim</button>
+      <button id="leftBtn" class="btn small" aria-label="Move clip earlier">&larr;</button>
+      <button id="rightBtn" class="btn small" aria-label="Move clip later">&rarr;</button>
+      <button id="delClipBtn" class="btn small danger">Delete</button>
+    </div>
+    <p class="hint tip">Tap the timeline to pick a clip. Drag its white handles to trim. Split cuts at the red line.</p>
   </section>
 
   <section class="panel">
@@ -48,7 +70,7 @@
     </nav>
 
     <div class="pane on" id="pane-videos">
-      <p class="hint">Clips play one after another. Tap a clip to trim or move it.</p>
+      <p class="hint">Clips play one after another. Tap a clip for trim, crop and volume.</p>
       <ul class="list" id="list-videos"></ul>
       <label class="btn primary" for="fileVideo">Add video</label>
       <input type="file" id="fileVideo" accept="video/*" multiple hidden>
@@ -134,7 +156,7 @@
     <div class="bar big"><div id="exportBar"></div></div>
     <video id="exportVideo" controls playsinline hidden></video>
     <div class="row" id="exportActions" hidden>
-      <a id="saveLink" class="btn primary" download="simplecut.mp4">Save video</a>
+      <a id="saveLink" class="btn primary" download="viuit.mp4">Save video</a>
       <button id="shareBtn" class="btn">Share</button>
       <button id="exportClose" class="btn">Close</button>
     </div>

@@ -1,6 +1,6 @@
 {
-  "appId": "com.imvisal.simplecut",
-  "appName": "SimpleCut",
+  "appId": "com.imvisal.viuit",
+  "appName": "viuit",
   "webDir": "../docs",
   "backgroundColor": "#16181d",
   "android": { "allowMixedContent": false }
