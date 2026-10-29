@@ -151,9 +151,17 @@ function clipRect(c, W, H) {
   const s = (c.fit === 'fill' ? Math.max(W / vw, H / vh) : Math.min(W / vw, H / vh)) * c.zoom, w = vw * s, h = vh * s;
   return { x: w > W ? (W - w) * c.px / 100 : (W - w) / 2, y: h > H ? (H - h) * c.py / 100 : (H - h) / 2, w, h };
 }
+function layoutCanvas(W, H) {
+  const box = cv.parentElement, bw = box.clientWidth, bh = box.clientHeight;
+  if (!bw || !bh) return;
+  const s = Math.min(bw / W, bh / H), w = Math.round(W * s) + 'px', h = Math.round(H * s) + 'px';
+  if (cv.style.width !== w) cv.style.width = w;
+  if (cv.style.height !== h) cv.style.height = h;
+}
 function draw(t) {
   const [W, H] = outSize();
   if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  layoutCanvas(W, H);
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   const loc = locate(t);
   if (loc) {
@@ -594,7 +602,8 @@ const capInputs = () => {
   if (!state.playing) draw(state.t);
 };
 ['#capOn', '#capBox', '#capSize', '#capBottom', '#capColor'].forEach(s => $(s).addEventListener('input', capInputs));
-window.addEventListener('resize', drawTimeline);
+window.addEventListener('resize', () => { drawTimeline(); draw(state.t); });
+if (window.ResizeObserver) new ResizeObserver(() => draw(state.t)).observe(cv.parentElement);
 document.addEventListener('visibilitychange', () => { if (document.hidden && state.playing && !(recorder && recorder.state === 'recording')) pause(); });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 setPlayIcon(); refresh();
