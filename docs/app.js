@@ -453,6 +453,9 @@ async function exportVideo() {
     const a = $('#saveLink'); a.href = url; a.download = 'simplecut.' + ext;
     $('#exportTitle').textContent = 'Done'; $('#exportMsg').textContent = (blob.size / 1048576).toFixed(1) + ' MB · ' + ext.toUpperCase() + ' · ' + W + '×' + H;
     $('#exportBar').style.width = '100%'; $('#exportActions').hidden = false; $('#exportCancel').hidden = true;
+    const native = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+    if (native) { a.textContent = 'Save / Share'; a.onclick = ev => { ev.preventDefault(); nativeShare(blob, ext); }; }
+    $('#shareBtn').hidden = native;
     $('#shareBtn').onclick = async () => {
       try { const f = new File([blob], 'simplecut.' + ext, { type: blob.type }); if (navigator.canShare && navigator.canShare({ files: [f] })) await navigator.share({ files: [f] }); else toast('Use Save video instead.'); } catch (e) { /* cancelled */ }
     };
@@ -461,6 +464,14 @@ async function exportVideo() {
   const tick = setInterval(() => { $('#exportBar').style.width = (100 * state.t / Math.max(total(), 0.1)) + '%'; }, 250);
   play(() => setTimeout(() => { clearInterval(tick); if (recorder.state !== 'inactive') recorder.stop(); }, 400));
   recorder.addEventListener('stop', () => clearInterval(tick));
+}
+async function nativeShare(blob, ext) {
+  try {
+    const { Filesystem, Share } = Capacitor.Plugins;
+    const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+    const f = await Filesystem.writeFile({ path: 'simplecut-' + Date.now() + '.' + ext, data: b64, directory: 'CACHE' });
+    await Share.share({ title: 'SimpleCut video', files: [f.uri] });
+  } catch (e) { toast('Could not save: ' + (e.message || e)); }
 }
 function cancelExport() {
   exportCancelled = true; pause();

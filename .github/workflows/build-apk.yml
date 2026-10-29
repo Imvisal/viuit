@@ -1,0 +1,73 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**', 'mobile/**', '.github/workflows/build-apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Capacitor
+        working-directory: mobile
+        run: npm install
+
+      - name: Create Android project
+        working-directory: mobile
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: App icon and activity
+        working-directory: mobile
+        run: |
+          pip install pillow
+          python3 - <<'PY'
+          import os, shutil
+          from PIL import Image
+          res = "android/app/src/main/res"
+          shutil.rmtree(res + "/mipmap-anydpi-v26", ignore_errors=True)
+          src = Image.open("../docs/icon-512.png").convert("RGBA")
+          for d, s in {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}.items():
+              p = f"{res}/mipmap-{d}"
+              os.makedirs(p, exist_ok=True)
+              for n in ("ic_launcher.png", "ic_launcher_round.png", "ic_launcher_foreground.png"):
+                  src.resize((s, s), Image.LANCZOS).save(f"{p}/{n}")
+          PY
+          cp MainActivity.java android/app/src/main/java/com/imvisal/simplecut/MainActivity.java
+
+      - name: Build APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Collect APK
+        run: cp mobile/android/app/build/outputs/apk/debug/app-debug.apk SimpleCut.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SimpleCut-apk
+          path: SimpleCut.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: SimpleCut APK (latest)
+          body: Download SimpleCut.apk on your Android phone and install it (allow "install unknown apps" for your browser).
+          files: SimpleCut.apk

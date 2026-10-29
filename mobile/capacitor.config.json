@@ -1,0 +1,7 @@
+{
+  "appId": "com.imvisal.simplecut",
+  "appName": "SimpleCut",
+  "webDir": "../docs",
+  "backgroundColor": "#16181d",
+  "android": { "allowMixedContent": false }
+}
