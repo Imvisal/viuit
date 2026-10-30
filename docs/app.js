@@ -315,6 +315,7 @@ function sync(t) {
     if (state.clips[curClip]) state.clips[curClip].el.pause();
     curClip = loc.i; c.el.playbackRate = cspeed(c);
     if (prepared !== loc.i) c.el.currentTime = want;
+    sw0 = { i: loc.i, at: performance.now(), want: c.el.currentTime };
     c.el.play().catch(() => {});
   } else if (Math.abs(c.el.currentTime - want) > 0.4 * cspeed(c)) c.el.currentTime = want;
   if (c.gain) c.gain.gain.value = (c.volume == null ? 100 : c.volume) / 100 * fadeAlpha(c, loc.local, loc.d);
@@ -330,7 +331,7 @@ function play(endCb) {
   if (!state.clips.length) return toast('Add a video first.');
   ensureAudio(); AC.resume(); wireAll();
   if (state.t >= total() - 0.05) state.t = 0;
-  state.playing = true; tStart = state.t; playStart = performance.now(); curClip = -1; prepared = -1; onEnd = endCb || null;
+  state.playing = true; tStart = state.t; playStart = performance.now(); lastNow = playStart; sw0 = null; curClip = -1; prepared = -1; onEnd = endCb || null;
   setPlayIcon(); loop();
 }
 function pause() {
@@ -339,9 +340,20 @@ function pause() {
   setPlayIcon();
 }
 let frameN = 0;
+let lastNow = 0, sw0 = null;
 function loop() {
   if (!state.playing) return;
-  const t = tStart + (performance.now() - playStart) / 1000;
+  const now = performance.now();
+  let t = tStart + (now - playStart) / 1000;
+  /* the clock waits for the video: while the clip is still seeking / buffering / not yet moving, time stands still */
+  if (t < total() && curClip >= 0) {
+    const loc0 = locate(t), c0 = loc0 && state.clips[loc0.i];
+    if (c0 && loc0.i === curClip) {
+      const el = c0.el, starting = sw0 && sw0.i === curClip && now - sw0.at < 4000 && el.currentTime <= sw0.want + 0.001;
+      if (el.seeking || el.readyState < 3 || starting) { playStart += now - lastNow; t = tStart + (now - playStart) / 1000; }
+    }
+  }
+  lastNow = now;
   if (t >= total()) {
     state.t = total(); draw(state.t); updateTransport();
     const cb = onEnd; onEnd = null; pause(); if (cb) cb(); return;
