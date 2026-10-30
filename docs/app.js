@@ -126,7 +126,55 @@ const TPL = {
   comic: { name: 'Comic', font: '"Comic Sans MS", "Chalkboard SE", "Marker Felt", ' + FONT_SANS, w: 800, upper: true, color: '#ffffff', stroke: '#e11d48', sw: 0.2 },
   pop: { name: 'Pop', font: FONT_SANS, w: 900, upper: true, color: '#ffffff', bg: '#e5334b' },
   soft: { name: 'Soft', font: FONT_SANS, w: 600, color: '#ffffff', shadow: true, k: 0.85 },
+  karaoke: { name: 'Karaoke', font: 'Impact, "Arial Black", "Roboto Condensed", ' + FONT_SANS, w: 900, upper: true, color: '#ffffff', stroke: '#000000', sw: 0.18, anim: 'karaoke', hl: '#39ff6a', pop: true },
+  highlight: { name: 'Highlight', font: FONT_SANS, w: 900, upper: true, color: '#ffffff', stroke: '#000000', sw: 0.16, anim: 'karaoke', hl: '#ffd400', pop: true },
+  typer: { name: 'Typewriter', font: '"Courier New", ui-monospace, monospace', w: 700, color: '#ffffff', stroke: '#000000', sw: 0.12, anim: 'type' },
+  wordpop: { name: 'Word pop', font: FONT_SANS, w: 900, upper: true, color: '#ffffff', stroke: '#000000', sw: 0.16, anim: 'word', pop: true },
+  one: { name: 'One word', font: 'Impact, "Arial Black", "Roboto Condensed", ' + FONT_SANS, w: 900, upper: true, color: '#ffd400', stroke: '#000000', sw: 0.2, anim: 'one', pop: true, k: 1.25 },
+  boxword: { name: 'Box word', font: FONT_SANS, w: 800, upper: true, color: '#ffffff', stroke: '#000000', sw: 0.14, anim: 'karaoke', hl: '#ffffff', hlbg: '#7c3aed' },
 };
+function evenWords(text, s, e) {
+  const ws = String(text).trim().split(/\s+/).filter(Boolean), tot = ws.reduce((a, w) => a + w.length + 1, 0) || 1; let t = s;
+  return ws.map(w => { const d = (e - s) * (w.length + 1) / tot, r = { t: w, s: +t.toFixed(2), e: +(t + d).toFixed(2) }; t += d; return r; });
+}
+/* caption with word-by-word animation (karaoke highlight, typewriter, word pop, one word at a time) */
+function drawCaptionAnim(g, c, t, x, y, W, id, color, px, forceBox) {
+  const tp = TPL[id] || TPL.classic;
+  if (!tp.anim) return drawStyled(g, c.text, x, y, W, id, color, px, 'bottom', 0.88, forceBox);
+  px *= tp.k || 1;
+  const words = c.words && c.words.length ? c.words : evenWords(c.text, c.start, c.end);
+  g.save(); g.textBaseline = 'middle'; g.lineJoin = 'round'; g.textAlign = 'left'; g.font = tp.w + ' ' + px + 'px ' + tp.font;
+  const toks = words.map(w => { const tx = tp.upper ? w.t.toUpperCase() : w.t; return { ...w, tx, w: g.measureText(tx).width }; });
+  let act = 0; toks.forEach((w, i) => { if (t >= w.s) act = i; });
+  const stroke = (txt, ox, oy) => { if (tp.stroke) { g.lineWidth = Math.max(2, px * tp.sw); g.strokeStyle = tp.stroke; g.strokeText(txt, ox, oy); } };
+  const pop = w => (tp.pop ? 0.7 + 0.3 * clamp((t - w.s) / 0.14, 0, 1) : 1);
+  if (tp.anim === 'one') {
+    const w = toks[act], sc = pop(w); g.save(); g.translate(x, y - px * 0.7); g.scale(sc, sc); g.textAlign = 'center';
+    stroke(w.tx, 0, 0); g.fillStyle = color; g.fillText(w.tx, 0, 0); g.restore(); g.restore(); return;
+  }
+  const space = g.measureText(' ').width, maxW = W * 0.88, lines = []; let cur = { items: [], w: 0 };
+  toks.forEach((w, i) => { const add = (cur.items.length ? space : 0) + w.w; if (cur.items.length && cur.w + add > maxW) { lines.push(cur); cur = { items: [], w: 0 }; } cur.w += (cur.items.length ? space : 0) + w.w; cur.items.push(i); });
+  lines.push(cur);
+  const lh = px * 1.25, bh = lines.length * lh, top = y - bh, bw = Math.max(...lines.map(l => l.w));
+  if (forceBox) { g.fillStyle = 'rgba(0,0,0,.6)'; rr(g, x - bw / 2 - px * 0.45, top - px * 0.1, bw + px * 0.9, bh + px * 0.2, px * 0.28); g.fill(); }
+  lines.forEach((ln, li) => {
+    let xx = x - ln.w / 2; const cy = top + (li + 0.5) * lh;
+    ln.items.forEach(i => {
+      const w = toks[i], isAct = i === act; let txt = w.tx, vis = true;
+      if (tp.anim === 'word' && i > act) vis = false;
+      if (tp.anim === 'type') { if (i > act) vis = false; else if (isAct) txt = w.tx.slice(0, Math.max(1, Math.ceil(clamp((t - w.s) / Math.max(0.05, w.e - w.s), 0, 1) * w.tx.length))); }
+      if (vis) {
+        const sc = isAct ? pop(w) : 1;
+        g.save(); g.translate(xx + w.w / 2, cy); g.scale(sc, sc); g.translate(-w.w / 2, 0);
+        if (tp.hlbg && isAct) { g.fillStyle = tp.hlbg; rr(g, -px * 0.2, -lh * 0.46, w.w + px * 0.4, lh * 0.92, px * 0.22); g.fill(); }
+        else stroke(txt, 0, 0);
+        g.fillStyle = tp.hl && isAct && !tp.hlbg ? tp.hl : tp.hlbg && isAct ? tp.hl : color; g.fillText(txt, 0, 0); g.restore();
+      }
+      xx += w.w + space;
+    });
+  });
+  g.restore();
+}
 /* draws text with a template. anchor: 'bottom' (y is the bottom edge) or 'center'. returns its box. */
 function drawStyled(g, text, x, y, W, id, color, px, anchor, maxFrac, forceBox) {
   const t = TPL[id] || TPL.classic; px *= t.k || 1;
@@ -157,7 +205,7 @@ function drawOverlays(t, W, H) {
   const cs = state.cap;
   if (cs.enabled) {
     const c = state.captions.find(c => t >= c.start && t < c.end);
-    if (c && c.text.trim()) drawStyled(ctx, c.text.trim(), W / 2, H - H * cs.bottom / 100, W, cs.tpl || 'classic', cs.color, Math.max(8, cs.size * k), 'bottom', 0.88, cs.box);
+    if (c && c.text.trim()) drawCaptionAnim(ctx, c, t, W / 2, H - H * cs.bottom / 100, W, cs.tpl || 'classic', cs.color, Math.max(8, cs.size * k), cs.box);
   }
 }
 function clipRect(c, W, H) {
@@ -497,11 +545,15 @@ function addText() {
   openSheet({ title: 'Add text', fields: textFields({ text: 'Your text', start: s, end: +(s + 3).toFixed(1), x: 50, y: 50, size: 90, color: '#ffffff', tpl: 'bold' }), onSave: v => { if (v.text.trim()) { state.texts.push(readText(v)); refresh(); } } });
 }
 function capFields(c) { return [{ k: 'text', label: 'Caption', type: 'area', v: c.text }, { k: 's', label: 'Start (seconds)', type: 'number', v: c.start }, { k: 'e', label: 'End (seconds)', type: 'number', v: c.end }]; }
-function readCap(v) { return { text: v.text.trim(), start: Math.max(0, num(v.s)), end: Math.max(0, num(v.e)) }; }
+function readCap(v, old) {
+  const text = v.text.trim(), start = Math.max(0, num(v.s)), end = Math.max(0, num(v.e)), ws = text.split(/\s+/).filter(Boolean);
+  const keep = old && old.words && old.words.length === ws.length && Math.abs(old.start - start) < 0.01 && Math.abs(old.end - end) < 0.01;
+  return { text, start, end, words: keep ? old.words.map((w, i) => ({ ...w, t: ws[i] })) : evenWords(text, start, Math.max(end, start + 0.2)) };
+}
 const sortCaps = () => state.captions.sort((a, b) => a.start - b.start);
 function editCaption(i) {
   seekTo(state.captions[i].start);
-  openSheet({ title: 'Caption', fields: capFields(state.captions[i]), onSave: v => { if (v.text.trim()) { state.captions[i] = readCap(v); sortCaps(); refresh(); } }, onDelete: () => { state.captions.splice(i, 1); refresh(); } });
+  openSheet({ title: 'Caption', fields: capFields(state.captions[i]), onSave: v => { if (v.text.trim()) { state.captions[i] = readCap(v, state.captions[i]); sortCaps(); refresh(); } }, onDelete: () => { state.captions.splice(i, 1); refresh(); } });
 }
 function addCaption() {
   const s = +state.t.toFixed(1);
@@ -541,7 +593,7 @@ function splitChunk(text, s, e) {
   if (cur.length) groups.push(cur);
   const lens = groups.map(g => g.join(' ').length), sum = lens.reduce((a, b) => a + b, 0) || 1;
   let t = s;
-  return groups.map((g, i) => { const d = (e - s) * lens[i] / sum, r = { start: +t.toFixed(2), end: +(t + d).toFixed(2), text: g.join(' ') }; t += d; return r; });
+  return groups.map((g, i) => { const d = (e - s) * lens[i] / sum, r = { start: +t.toFixed(2), end: +(t + d).toFixed(2), text: g.join(' ') }; r.words = evenWords(r.text, r.start, r.end); t += d; return r; });
 }
 async function genCaptions() {
   if (!state.clips.length) return toast('Add a video first.');
@@ -558,13 +610,26 @@ async function genCaptions() {
       progress_callback: p => { if (p.status === 'progress' && p.total) say('Downloading AI model… ' + Math.round(p.progress) + '%', p.progress / 100); },
     });
     say('Listening. This can take a few minutes on a phone.');
-    const lang = $('#lang').value;
-    const out = await asr(audio, { chunk_length_s: 30, stride_length_s: 5, return_timestamps: true, task: 'transcribe', ...(lang ? { language: lang } : {}) });
-    const tot = total(), caps = [];
-    for (const ch of out.chunks || []) {
-      if (!ch.text || !ch.text.trim()) continue;
-      const s = ch.timestamp[0] ?? 0, e = ch.timestamp[1] ?? Math.min(tot, s + 3);
-      caps.push(...splitChunk(ch.text, s, Math.max(e, s + 0.4)));
+    const lang = $('#lang').value, opts = { chunk_length_s: 30, stride_length_s: 5, task: 'transcribe', ...(lang ? { language: lang } : {}) };
+    const tot = total(); let caps = [], out;
+    try { out = await asr(audio, { ...opts, return_timestamps: 'word' }); } catch (err) { console.warn('word timestamps not available, using phrase timing', err); out = null; }
+    const wordChunks = out && (out.chunks || []).filter(ch => ch.text && ch.text.trim() && ch.timestamp && ch.timestamp[0] != null);
+    if (wordChunks && wordChunks.length > 1 && wordChunks.every(ch => ch.text.trim().split(/\s+/).length === 1)) {
+      let cur = [];
+      const flush = () => { if (cur.length) { caps.push({ start: cur[0].s, end: cur[cur.length - 1].e, text: cur.map(w => w.t).join(' '), words: cur }); cur = []; } };
+      wordChunks.forEach(ch => {
+        const w = { t: ch.text.trim(), s: +ch.timestamp[0].toFixed(2), e: +(ch.timestamp[1] ?? ch.timestamp[0] + 0.3).toFixed(2) };
+        if (cur.length && (cur.length >= 6 || (cur.map(x => x.t).join(' ') + ' ' + w.t).length > 32 || w.s - cur[cur.length - 1].e > 0.7)) flush();
+        cur.push(w); if (/[.!?]$/.test(w.t) && cur.length >= 2) flush();
+      });
+      flush();
+    } else {
+      out = await asr(audio, { ...opts, return_timestamps: true });
+      for (const ch of out.chunks || []) {
+        if (!ch.text || !ch.text.trim()) continue;
+        const s0 = ch.timestamp[0] ?? 0, e0 = ch.timestamp[1] ?? Math.min(tot, s0 + 3);
+        caps.push(...splitChunk(ch.text, s0, Math.max(e0, s0 + 0.4)));
+      }
     }
     state.captions = caps; sortCaps();
     say(caps.length + ' captions added. Tap one to fix a word.', 1);
@@ -771,7 +836,9 @@ function renderTemplateTiles() {
   Object.entries(TPL).forEach(([id, t]) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'tile' + ((state.cap.tpl || 'classic') === id ? ' on' : ''); b.setAttribute('aria-label', t.name + ' template');
     const cvs = document.createElement('canvas'); cvs.width = 208; cvs.height = 128; const g = cvs.getContext('2d');
-    g.fillStyle = '#2b2d35'; g.fillRect(0, 0, 208, 128); drawStyled(g, 'The quick', 104, 64, 208, id, t.color, 38, 'center', 0.92, false);
+    g.fillStyle = '#2b2d35'; g.fillRect(0, 0, 208, 128);
+    const smp = { start: 0, end: 2, text: 'The quick fox', words: [{ t: 'The', s: 0, e: 0.5 }, { t: 'quick', s: 0.5, e: 1.1 }, { t: 'fox', s: 1.1, e: 1.8 }] };
+    drawCaptionAnim(g, smp, 0.8, 104, 78, 208, id, t.color, 34, false);
     const sp = document.createElement('span'); sp.textContent = t.name; b.append(cvs, sp);
     b.onclick = () => { state.cap.tpl = id; state.cap.color = t.color; $('#capColor').value = t.color; renderTemplateTiles(); draw(state.t); commit(); updateTransport(); };
     box.appendChild(b);
