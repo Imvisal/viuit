@@ -715,11 +715,16 @@ async function exportVideo() {
   const chunks = [];
   recorder = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: BITRATE[state.res], audioBitsPerSecond: 192000 });
   recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-  recorder.onstop = () => {
+  recorder.onstop = async () => {
     exporting = false; layoutDirty = true; draw(state.t);
     monitor.gain.value = 1; wakeLock && wakeLock.release && wakeLock.release().catch(() => {});
     if (exportCancelled) { wrap.hidden = true; return; }
-    const blob = new Blob(chunks, { type: mime || 'video/webm' }), url = URL.createObjectURL(blob);
+    let blob = new Blob(chunks, { type: mime || 'video/webm' });
+    if (ext === 'mp4' && window.fmp4ToMp4) {
+      $('#exportTitle').textContent = 'Finishing…';
+      try { blob = new Blob([fmp4ToMp4(await blob.arrayBuffer())], { type: 'video/mp4' }); } catch (e) { console.warn('remux failed', e); }
+    }
+    const url = URL.createObjectURL(blob);
     const v = $('#exportVideo'); v.src = url; v.hidden = false;
     const a = $('#saveLink'); a.href = url; a.download = 'viuit.' + ext;
     $('#exportTitle').textContent = 'Done'; $('#exportMsg').textContent = (blob.size / 1048576).toFixed(1) + ' MB · ' + ext.toUpperCase() + ' · ' + W + '×' + H;
