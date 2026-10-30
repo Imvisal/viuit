@@ -51,6 +51,7 @@ jobs:
                   src.resize((s, s), Image.LANCZOS).save(f"{p}/{n}")
           PY
           cp MainActivity.java android/app/src/main/java/com/imvisal/viuit/MainActivity.java
+          cp SaveVideoPlugin.java android/app/src/main/java/com/imvisal/viuit/SaveVideoPlugin.java
 
       - name: Use fixed signing key (so updates install over older versions)
         run: |

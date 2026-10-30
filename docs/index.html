@@ -63,6 +63,17 @@
           <button id="rightBtn" class="btn small" aria-label="Move clip later">&rarr;</button>
           <button id="delClipBtn" class="btn small danger">Delete</button>
         </div>
+        <div class="clipbar">
+          <button id="rotBtn" class="btn small">Rotate</button>
+          <button id="mirBtn" class="btn small">Mirror</button>
+          <button id="dupBtn" class="btn small">Duplicate</button>
+          <button id="fadeBtn" class="btn small">Fade</button>
+        </div>
+        <p class="hint">Speed</p>
+        <div class="chips" id="spdChips"></div>
+        <p class="hint">Filter</p>
+        <div class="chips" id="fltChips"></div>
+        <label class="field">Volume <input type="range" id="volRange" min="0" max="200" step="5" value="100"></label>
         <p class="hint">The clip under the white line is selected. Drag the timeline to move, drag the white handles to trim.</p>
         <ul class="list" id="list-videos"></ul>
         <label class="btn primary" for="fileVideo">Add video</label>
@@ -81,6 +92,8 @@
       </div>
 
       <div class="pane" id="pane-captions">
+        <p class="hint">Templates</p>
+        <div class="tiles" id="tplTiles"></div>
         <div class="row">
           <label>AI model
             <select id="model">
