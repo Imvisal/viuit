@@ -7,7 +7,7 @@ const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers
 
 const state = {
   clips: [], audios: [], texts: [], captions: [],
-  cap: { enabled: true, size: 54, color: '#ffffff', bottom: 8, box: false, tpl: 'classic' },
+  cap: { enabled: true, size: 54, color: '#ffffff', bottom: 24, x: 50, box: false, tpl: 'classic' },
   t: 0, playing: false, res: '1080p', aspect: 'auto',
 };
 let uid = 1;
@@ -150,7 +150,8 @@ function drawCaptionAnim(g, c, t, x, y, W, id, color, px, forceBox) {
   const pop = w => (tp.pop ? 0.7 + 0.3 * clamp((t - w.s) / 0.14, 0, 1) : 1);
   if (tp.anim === 'one') {
     const w = toks[act], sc = pop(w); g.save(); g.translate(x, y - px * 0.7); g.scale(sc, sc); g.textAlign = 'center';
-    stroke(w.tx, 0, 0); g.fillStyle = color; g.fillText(w.tx, 0, 0); g.restore(); g.restore(); return;
+    stroke(w.tx, 0, 0); g.fillStyle = color; g.fillText(w.tx, 0, 0); g.restore(); g.restore();
+    return { x: x - w.w / 2, y: y - px * 0.7 - px * 0.62, w: w.w, h: px * 1.25 };
   }
   const space = g.measureText(' ').width, maxW = W * 0.88, lines = []; let cur = { items: [], w: 0 };
   toks.forEach((w, i) => { const add = (cur.items.length ? space : 0) + w.w; if (cur.items.length && cur.w + add > maxW) { lines.push(cur); cur = { items: [], w: 0 }; } cur.w += (cur.items.length ? space : 0) + w.w; cur.items.push(i); });
@@ -174,6 +175,7 @@ function drawCaptionAnim(g, c, t, x, y, W, id, color, px, forceBox) {
     });
   });
   g.restore();
+  return { x: x - bw / 2, y: top, w: bw, h: bh };
 }
 /* draws text with a template. anchor: 'bottom' (y is the bottom edge) or 'center'. returns its box. */
 function drawStyled(g, text, x, y, W, id, color, px, anchor, maxFrac, forceBox) {
@@ -194,9 +196,9 @@ function drawStyled(g, text, x, y, W, id, color, px, anchor, maxFrac, forceBox) 
   g.restore();
   return { x: x - bw / 2, y: top, w: bw, h: bh };
 }
-let textBoxes = [];
+let textBoxes = [], capBox = null, sel = null, dragIt = null, guides = { v: false, h: false };
 function drawOverlays(t, W, H) {
-  const k = Math.min(W, H) / 1080; textBoxes = [];
+  const k = Math.min(W, H) / 1080; textBoxes = []; capBox = null;
   state.texts.forEach((x, i) => {
     if (t < x.start || t >= x.end || !x.text.trim()) return;
     const b = drawStyled(ctx, x.text, W * x.x / 100, H * x.y / 100, W, x.tpl || 'classic', x.color, Math.max(8, x.size * k), 'center', 0.92, false);
@@ -205,7 +207,7 @@ function drawOverlays(t, W, H) {
   const cs = state.cap;
   if (cs.enabled) {
     const c = state.captions.find(c => t >= c.start && t < c.end);
-    if (c && c.text.trim()) drawCaptionAnim(ctx, c, t, W / 2, H - H * cs.bottom / 100, W, cs.tpl || 'classic', cs.color, Math.max(8, cs.size * k), cs.box);
+    if (c && c.text.trim()) capBox = drawCaptionAnim(ctx, c, t, W * (cs.x == null ? 50 : cs.x) / 100, H - H * cs.bottom / 100, W, cs.tpl || 'classic', cs.color, Math.max(8, cs.size * k), cs.box);
   }
 }
 function clipRect(c, W, H) {
@@ -219,6 +221,28 @@ function layoutCanvas(W, H) {
   const s = Math.min(bw / W, bh / H), w = Math.round(W * s) + 'px', h = Math.round(H * s) + 'px';
   if (cv.style.width !== w) cv.style.width = w;
   if (cv.style.height !== h) cv.style.height = h;
+  if (ov.style.width !== w) ov.style.width = w;
+  if (ov.style.height !== h) ov.style.height = h;
+}
+const ov = $('#ov'), og = ov.getContext('2d');
+function drawUI() {
+  const w = cv.clientWidth, h = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (!w) return;
+  if (ov.width !== Math.round(w * dpr) || ov.height !== Math.round(h * dpr)) { ov.width = Math.round(w * dpr); ov.height = Math.round(h * dpr); }
+  og.setTransform(dpr, 0, 0, dpr, 0, 0); og.clearRect(0, 0, w, h);
+  const k = w / cv.width;
+  if (sel && (!state.playing || dragIt)) {
+    const b = sel.type === 'cap' ? capBox : textBoxes.find(x => x.i === sel.i);
+    if (b) {
+      const pad = 8, x = b.x * k - pad, y = b.y * k - pad, bw = b.w * k + pad * 2, bh = b.h * k + pad * 2;
+      og.strokeStyle = '#fff'; og.lineWidth = 1.5; og.strokeRect(x, y, bw, bh); og.fillStyle = '#fff';
+      [[x, y], [x + bw, y], [x, y + bh], [x + bw, y + bh]].forEach(([cx, cy]) => { og.beginPath(); og.arc(cx, cy, 4, 0, 7); og.fill(); });
+    }
+  }
+  og.strokeStyle = '#ff4fa3'; og.lineWidth = 1.5; og.setLineDash([6, 5]);
+  if (guides.v) { og.beginPath(); og.moveTo(w / 2, 0); og.lineTo(w / 2, h); og.stroke(); }
+  if (guides.h) { og.beginPath(); og.moveTo(0, h / 2); og.lineTo(w, h / 2); og.stroke(); }
+  og.setLineDash([]);
 }
 function draw(t) {
   const [W, H] = outSize();
@@ -242,6 +266,7 @@ function draw(t) {
     }
   }
   drawOverlays(t, W, H);
+  drawUI();
 }
 
 /* ------------------------------------------------------------ playback */
@@ -734,7 +759,7 @@ $('#exportClose').onclick = () => { $('#exportWrap').hidden = true; $('#exportVi
 const capInputs = () => {
   const c = state.cap;
   c.enabled = $('#capOn').checked; c.box = $('#capBox').checked; c.size = clamp(num($('#capSize').value, 54), 10, 300);
-  c.bottom = clamp(num($('#capBottom').value, 8), 0, 90); c.color = $('#capColor').value;
+  c.bottom = clamp(num($('#capBottom').value, 24), 0, 90); c.color = $('#capColor').value;
   if (!state.playing) draw(state.t);
 };
 ['#capOn', '#capBox', '#capSize', '#capBottom', '#capColor'].forEach(s => { $(s).addEventListener('input', capInputs); $(s).addEventListener('change', () => { commit(); updateTransport(); }); });
@@ -846,24 +871,43 @@ function renderTemplateTiles() {
 }
 renderTemplateTiles();
 
-/* drag text on the preview */
-let tdrag = null;
+/* drag captions / text on the preview: shows a selection box and pink centre guides that snap */
+const curCapIdx = () => state.captions.findIndex(c => state.t >= c.start && state.t < c.end);
 cv.addEventListener('pointerdown', e => {
-  if (cropMode || !textBoxes.length) return;
-  const r = cv.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * cv.width, py = (e.clientY - r.top) / r.height * cv.height, m = 24;
-  const hit = [...textBoxes].reverse().find(b => px >= b.x - m && px <= b.x + b.w + m && py >= b.y - m && py <= b.y + b.h + m);
-  if (!hit) return;
+  if (cropMode) return;
+  const r = cv.getBoundingClientRect(), k = cv.width / r.width, px = (e.clientX - r.left) * k, py = (e.clientY - r.top) * k, m = 28 * k;
+  const inBox = b => b && px >= b.x - m && px <= b.x + b.w + m && py >= b.y - m && py <= b.y + b.h + m;
+  const tb = [...textBoxes].reverse().find(inBox);
+  const hit = tb ? { type: 'text', i: tb.i, b: tb } : inBox(capBox) ? { type: 'cap', b: capBox } : null;
+  if (!hit) { if (sel) { sel = null; draw(state.t); } return; }
   if (state.playing) pause();
-  const t = state.texts[hit.i]; tdrag = { i: hit.i, dx: px - t.x / 100 * cv.width, dy: py - t.y / 100 * cv.height };
-  cv.setPointerCapture(e.pointerId);
+  const was = !!sel && sel.type === hit.type && sel.i === hit.i;
+  sel = { type: hit.type, i: hit.i };
+  dragIt = { hit, was, moved: false, ox: px - (hit.b.x + hit.b.w / 2), oy: py - (hit.b.y + hit.b.h / 2), x0: e.clientX, y0: e.clientY };
+  cv.setPointerCapture(e.pointerId); draw(state.t);
 });
 cv.addEventListener('pointermove', e => {
-  if (!tdrag) return;
-  const r = cv.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * cv.width, py = (e.clientY - r.top) / r.height * cv.height, t = state.texts[tdrag.i];
-  t.x = +clamp((px - tdrag.dx) / cv.width * 100, 0, 100).toFixed(1); t.y = +clamp((py - tdrag.dy) / cv.height * 100, 0, 100).toFixed(1); draw(state.t);
+  if (!dragIt) return;
+  if (!dragIt.moved && Math.hypot(e.clientX - dragIt.x0, e.clientY - dragIt.y0) < 6) return;
+  dragIt.moved = true;
+  const r = cv.getBoundingClientRect(), k = cv.width / r.width, W = cv.width, H = cv.height, b = dragIt.hit.b;
+  let cx = (e.clientX - r.left) * k - dragIt.ox, cy = (e.clientY - r.top) * k - dragIt.oy;
+  guides.v = Math.abs(cx - W / 2) < W * 0.018; if (guides.v) cx = W / 2;
+  guides.h = Math.abs(cy - H / 2) < H * 0.018; if (guides.h) cy = H / 2;
+  cx = clamp(cx, 0, W); cy = clamp(cy, b.h / 2, H - b.h / 2 + 0);
+  if (dragIt.hit.type === 'text') { const t = state.texts[dragIt.hit.i]; t.x = +(cx / W * 100).toFixed(1); t.y = +(cy / H * 100).toFixed(1); }
+  else { const c = state.cap; c.x = +(cx / W * 100).toFixed(1); c.bottom = +clamp((H - (cy + b.h / 2)) / H * 100, 0, 95).toFixed(1); $('#capBottom').value = Math.round(c.bottom); }
+  draw(state.t);
 });
-const tdUp = () => { if (tdrag) { tdrag = null; refresh(); } };
-cv.addEventListener('pointerup', tdUp); cv.addEventListener('pointercancel', tdUp);
+const dragUp = e => {
+  if (!dragIt) return;
+  const d = dragIt; dragIt = null; guides = { v: false, h: false };
+  if (d.moved) { commit(); refresh(); }
+  else if (d.was && e.type === 'pointerup') { if (d.hit.type === 'text') editText(d.hit.i); else { const i = curCapIdx(); if (i >= 0) editCaption(i); } }
+  draw(state.t);
+};
+cv.addEventListener('pointerup', dragUp); cv.addEventListener('pointercancel', dragUp);
+$('#capReset').onclick = () => { Object.assign(state.cap, { x: 50, bottom: 24 }); $('#capBottom').value = 24; draw(state.t); commit(); updateTransport(); toast('Captions moved back to the default place.'); };
 
 setPlayIcon(); refresh();
 window.__sc = { state, seekTo, play, pause, exportVideo, addVideos };

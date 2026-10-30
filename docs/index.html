@@ -29,6 +29,7 @@
 
   <section class="screen">
     <canvas id="cv" width="1920" height="1080"></canvas>
+    <canvas id="ov"></canvas>
     <div id="empty">Add a video to start</div>
   </section>
 
@@ -130,9 +131,10 @@
           </div>
           <div class="row">
             <label>Size<input type="number" id="capSize" value="54" min="10" max="300"></label>
-            <label>From bottom %<input type="number" id="capBottom" value="8" min="0" max="90"></label>
+            <label>From bottom %<input type="number" id="capBottom" value="24" min="0" max="90"></label>
             <label>Color<input type="color" id="capColor" value="#ffffff"></label>
           </div>
+          <button id="capReset" class="btn small" type="button">Reset position</button>
         </details>
       </div>
 
