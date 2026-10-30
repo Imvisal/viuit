@@ -752,7 +752,8 @@ const isNative = () => !!(window.Capacitor && Capacitor.isNativePlatform && Capa
 const b64Of = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = () => rej(new Error('Could not read the video')); r.readAsDataURL(blob); });
 let SaveVideo = null;
 async function saveToGallery(blob, ext, onProgress) {
-  SaveVideo = SaveVideo || Capacitor.registerPlugin('SaveVideo');
+  SaveVideo = SaveVideo || (Capacitor.Plugins && Capacitor.Plugins.SaveVideo) || (typeof Capacitor.registerPlugin === 'function' ? Capacitor.registerPlugin('SaveVideo') : null);
+  if (!SaveVideo) throw new Error('Save plugin is missing from this app build');
   const name = 'viuit-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14) + '.' + ext, CH = 2 * 1024 * 1024;
   let id;
   try {
